@@ -6,9 +6,10 @@ worker.py
 Created by Kurtiss Hare on 2010-03-12.
 """
 
+import datetime
 import logging
 import multiprocessing
-import pid
+import os
 import pymongo.objectid
 import signal
 import socket
@@ -17,12 +18,32 @@ import util
 
 
 class MonqueWorker(object):
-    def __init__(self, monque, queues):
+    def __init__(self, monque, queues = None):
         self._monque = monque
-        self._queues = queues
+        self._queues = queues or []
         self._worker_id = None
         self._child = None
         self._shutdown_status = None
+    
+
+    def register_worker(self):
+        self._worker_id = pymongo.objectid.ObjectId()
+        c = self._monque.get_collection('workers')
+
+        c.insert(dict(
+            _id         = self._worker_id,
+            hostname    = socket.gethostname(),
+            pid         = os.getpid(),
+            start_time  = None,
+            job         = None,
+            retried     = 0,
+            processed   = 0,
+            failed      = 0
+        ))
+
+    def unregister_worker(self):
+        wc = self._monque.get_collection('workers')
+        wc.remove(dict(_id = self._worker_id))    
     
     def work(self, interval=5):
         self.register_worker()
@@ -44,41 +65,41 @@ class MonqueWorker(object):
             self.unregister_worker()
             
     def _work_once(self):
-        job = self._monque.dequeue(self._queues)
+        order = self._monque.dequeue(self._queues)
 
-        if not job:
+        if not order:
             return False
 
-        if job:
+        if order:
             try:
-                self.working_on(job)
-                self.process(job)
+                self.working_on(order)
+                self.process(order)
             except Exception, e:
-                self._handle_job_failure(job, e)
+                self._handle_job_failure(order, e)
             else:
                 self.done_working()
 
         return True
         
-    def working_on(self, job):
+    def working_on(self, order):
         c = self._monque.get_collection('workers')
 
         c.update(dict(_id = self._worker_id), {
             '$set' : dict(
                 start_time  = datetime.datetime.utcnow(),
-                job         = job.__serialize__(),
+                job         = order.job.__serialize__(),
             )
         })
 
-    def process(job):
-        child = self.child = multiprocessing.Process(target=self._process_target, args=(job,))
+    def process(self, order):
+        child = self.child = multiprocessing.Process(target=self._process_target, args=(order,))
         self.child.start()
 
         util.setprocname("monque: Forked {0} at {1}".format(self.child.pid, time.time()))
 
         while True:
             try:
-                self.child.join()
+                child.join()
             except OSError, e:
                 if 'Interrupted system call' not in e:
                     raise
@@ -95,25 +116,25 @@ class MonqueWorker(object):
         c = self._monque.get_collection('workers')
         c.remove(dict(_id = self._worker_id))
     
-    def _process_target(self, job):
+    def _process_target(self, order):
         self.reset_signal_handlers()
-        util.setprocname("monque: Processing {0} since {1}".format(job.queue, time.time()))
-        job.run()
+        util.setprocname("monque: Processing {0} since {1}".format(order.queue, time.time()))
+        order.job.run()
         
-    def _handle_job_failure(self, job, e):
+    def _handle_job_failure(self, order, e):
         import traceback
-        logging.warn("Job failed ({0}): {1}\n{2}".format(job, str(e), traceback.format_exc()))
+        logging.warn("Job failed ({0}): {1}\n{2}".format(order.job, str(e), traceback.format_exc()))
 
-        if job.retries > 0:
-            job.fail(e)
-            self._monque.enqueue(job)
+        if order.retries > 0:
+            order.fail(e)
+            self._monque.enqueue(order)
 
             wc = self._monque.get_collection('workers')
             wc.update(dict(_id = self._worker_id), {'$inc' : dict(retried = 1)})
         else:
             self.failed()
 
-     def processed(self):
+    def processed(self):
         wc = self._monque.get_collection('workers')
         wc.update(dict(_id = self._worker_id), {'$inc' : dict(processed = 1)})
 
@@ -121,25 +142,6 @@ class MonqueWorker(object):
         wc = self._monque.get_collection('workers')
         wc.update(dict(_id = self._worker_id), {'$inc' : dict(failed = 1)})
         
-    def register_worker(self):
-        self._worker_id = pymongo.objectid.ObjectId()
-        c = self._monque.get_collection('workers')
-
-        c.insert(dict(
-            _id         = self._worker_id,
-            hostname    = socket.gethostname(),
-            pid         = os.getpid(),
-            start_time  = None,
-            job         = None,
-            retried     = 0,
-            processed   = 0,
-            failed      = 0
-        ))
-        
-    def unregister_worker(self):
-        wc = self._monque.get_collection('workers')
-        wc.remove(dict(_id = self._worker_id))
-
     def _register_signal_handlers(self):
         signal.signal(signal.SIGTERM,   lambda num, frame: self._shutdown())
         signal.signal(signal.SIGINT,    lambda num, frame: self._shutdown())

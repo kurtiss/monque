@@ -4,91 +4,124 @@
 job.py
 
 Created by Kurtiss Hare on 2010-03-12.
-Copyright (c) 2010 Medium Entertainment, Inc. All rights reserved.
 """
+
+import datetime
+import functools
+import pymongo
+import types
+import util
 
 
 class MonqueJob(object):
     @classmethod
-    def __decorator__(cls, **kwargs):
+    def job_decorator(cls, **kwargs):
         def decorator(undecorated):
-            @functools.wraps(undecorated)
-            def decorated(*func_args, **func_kwargs):
-                job = cls(undecorated, func_args, func_kwargs)
-                job.__configure__(kwargs)
-                return job
-            return decorated
+            return MonqueJobDecoration(cls, undecorated, kwargs)
         return decorator
         
     @classmethod
     def __deserialize__(cls, message):
-        job_cls_path = message.get('cls')
-        
-        if job_cls_path:
-            job_cls = util.get_toplevel_attr(job_cls_path)
-            
-            if job_cls != cls:
-                return job_cls.__deserialize__(message)
-        
         func = util.get_toplevel_attr(message['func'])
 
-        return cls(func, message['args'], message['kwargs'], 
-            id = message['id'], 
-            failures    = message['failures'],
-            retries     = message['retries']
-        )
+        if isinstance(func, MonqueJobDecoration):
+            func = func.undecorated
+            
+        return cls(func, message['args'], message['kwargs'], id = message['id'])
 
-    def __init__(self, func, func_args, func_kwargs, id = None, failures = None, retries = None):
+    def __init__(self, func, func_args, func_kwargs, id = None):
         self._func = func
         self._func_args = func_args
         self._func_kwargs = func_kwargs
-        self._configuration = dict()
         self.id = id or pymongo.objectid.ObjectId()
-        self._failures = failures or []
-        self._configuration['retries'] = retries
 
-        super(MonqueJob, self).__init__(func, func_args, func_kwargs)
+        super(MonqueJob, self).__init__()
 
-    def __configure__(self, **kwargs):
-        self._configuration.setdefault('queue', kwargs.get('queue', None))
-        self._configuration.setdefault('retries', kwargs.get('retries', None))
-        self._configuration.setdefault('delay', kwargs.get('delay', None))
-
-        return self
+    def __configure__(self, kwargs):
+        pass
 
     def __serialize__(self):
-        serialized = dict(
+        return dict(
             id          = self.id,
             func        = util.get_toplevel_attrname(self._func),
             args        = self._func_args,
             kwargs      = self._func_kwargs,
-            retries     = self._configuration['retries'],
-            failures    = self._failures,
         )
 
-        if self.__class__ != MonqueJob:
-            serialized['cls'] = util.get_toplevel_attrname(self.__class__)
-
-        return serialized
-        
-    def fail(self, e):
-        self.retries -= 1
-        self.failures.append(str(e))
-        
-    @property
-    def queue(self):
-        return self._configuration['queue']
-        
-    @property
-    def retries(self):
-        return self._configuration['retries']
-        
-    @property
-    def delay(self):
-        return self._configuration['delay']
-        
     def run(self):
         kwargs = dict((str(k), v) for (k,v) in self._func_kwargs.items())
-        return self.func(*self._func_args, **kwargs)
+        return self._func(*self._func_args, **kwargs)
+    
+    def __eq__(self, other):
+        return (
+            type(self) == type(other) and
+            util.get_toplevel_attrname(self._func) == util.get_toplevel_attrname(other._func) and
+            tuple(self._func_args) == tuple(other._func_args) and
+            set((str(k), v) for (k,v) in self._func_kwargs.items()) == set((str(k), v) for (k,v) in other._func_kwargs.items())
+        )
         
-job = MonqueJob.__decorator__
+    def __ne__(self, other):
+        return not (self == other)
+
+
+class MonqueJobDecoration(object):
+    def __init__(self, job_cls, undecorated, configuration):
+        self.job_cls = job_cls
+        self.undecorated = undecorated
+        self.configuration = configuration
+    
+    def __call__(self, *args, **kwargs):
+        j = self.job_cls(self.undecorated, args, kwargs)
+        work_order = MonqueWorkOrder(j)
+        work_order.__configure__(self.configuration)
+        return work_order
+
+
+class MonqueWorkOrder(object):
+    def __init__(self, job):
+        self.job = job
+
+    def fail(self, e):
+        self.retries = self.retries - 1
+        self.failures.append(str(e))
+
+    def __configure__(self, values):
+        configure_values = dict(values.items())
+
+        self._config_set('queue', configure_values)
+        self._config_set('delay', configure_values)
+        self._config_set('retries', configure_values)
+        self._config_set('failures', configure_values)
+        self.job.__configure__(configure_values)
+
+    def _config_set(self, name, values):
+        value = values.pop(name, None)
+
+        if not hasattr(self, name) and value is not None:
+            custom_setter = "_set_{0}".format(name)
+            if hasattr(self, custom_setter):
+                getattr(self, custom_setter)(value)
+            else:
+                setattr(self, name, value)
+    
+    def _set_delay(self, delay):
+        if isinstance(delay, types.IntType):
+            delay = datetime.timedelta(seconds = delay)
+
+        self.delay = delay
+        
+    def __eq__(self, other):
+        return (
+            type(self) == type(other) and
+            self.job == other.job and
+            getattr(self, 'queue', None) == getattr(other, 'queue', None) and
+            getattr(self, 'delay', None) == getattr(other, 'delay', None) and
+            getattr(self, 'retries', None) == getattr(other, 'retries', None) and
+            getattr(self, 'failures', None) == getattr(other, 'failures', None)
+        )
+    
+    def __ne__(self, other):
+        return not (self == other)
+
+
+job = MonqueJob.job_decorator

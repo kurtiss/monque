@@ -20,9 +20,9 @@ def get_toplevel_attr(name):
         mod_name, attr_name = name.rsplit('.', 1)
         mod = __import__(str(mod_name), {}, {}, [str(attr_name)])
         attr = getattr(mod, attr_name)
-        self._import_cache[name] = attr
+        _import_cache[name] = attr
 
-    return self._import_cache[name]
+    return _import_cache[name]
 
 def setprocname(name):
     global _setprocname

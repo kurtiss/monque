@@ -24,12 +24,12 @@ Submitting jobs:
         pass
 
     monque = Monque(mongodb)
-    monque.enqueue("queue", some_job(argument))
+    monque.enqueue(some_job(argument), queue = 'my_queue')
 
 Worker:
 
     from monque import Monque, MonqueWorker
 
     monque = Monque(mongodb)
-    worker = MonqueWorker(monque, ["queue"])
+		worker = monque.new_worker(queue = 'my_queue')
     worker.work()
