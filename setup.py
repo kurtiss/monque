@@ -7,20 +7,22 @@ Created by Kurtiss Hare on 2010-03-14.
 """
 
 from distutils.core import setup
-from monque import __version__ as version
+import os
+
+execfile(os.path.join('monque', 'version.py'))
  
 dependencies = ["pymongo"]
  
 setup(
     name                = 'monque',
-    version             = version,
+    version             = VERSION,
     description         = 'Persistent job queueing library using MongoDB, inspired by Dreque',
     author              = 'Kurtiss Hare',
     author_email        = 'kurtiss@kurtiss.org',
     url                 = 'http://github.com/kurtiss/monque',
     packages            = ['monque'],
-    requires            = dependencies,
-    install_requires    = dependencies,
+    requires            = ['pymongo'],
+    install_requires    = [],
     classifiers = [
         'Intended Audience :: Developers',
         'License :: OSI Approved :: BSD License',
