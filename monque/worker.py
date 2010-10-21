@@ -76,7 +76,7 @@ class MonqueWorker(object):
             except Exception, e:
                 self._handle_job_failure(order, e)
             else:
-                self.done_working()
+                self.done_working(order)
 
         return True
         
@@ -113,7 +113,8 @@ class MonqueWorker(object):
         else:
             self.dispatch(order)
     
-    def done_working(self):
+    def done_working(self, order):
+        self._monque.remove(order.queue, order.job_id)
         self.processed()
         c = self._monque.get_collection('workers')
         c.remove(dict(_id = self._worker_id))
