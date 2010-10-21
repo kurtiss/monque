@@ -26,9 +26,9 @@ class MonqueJob(object):
 
         if isinstance(func, MonqueJobDecoration):
             func = func.undecorated
-            
+        
         return cls(func, message['args'], message['kwargs'], id = message['id'])
-
+    
     def __init__(self, func, func_args, func_kwargs, id = None):
         self._func = func
         self._func_args = func_args

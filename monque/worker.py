@@ -91,7 +91,7 @@ class MonqueWorker(object):
         })
 
     def process(self, order):
-        if self.dispatcher == "fork":
+        if self._dispatcher == "fork":
             child = self._child = multiprocessing.Process(target=self._process_target, args=(order,))
             self._child.start()
 
@@ -148,10 +148,11 @@ class MonqueWorker(object):
         wc.update(dict(_id = self._worker_id), {'$inc' : dict(failed = 1)})
     
     def _register_signal_handlers(self):
-        signal.signal(signal.SIGTERM,   lambda num, frame: self._shutdown())
-        signal.signal(signal.SIGINT,    lambda num, frame: self._shutdown())
         signal.signal(signal.SIGQUIT,   lambda num, frame: self._shutdown(graceful=True))
-        signal.signal(signal.SIGUSR1,   lambda num, frame: self._kill_child())
+        if self._dispatcher == "fork":
+            signal.signal(signal.SIGTERM,   lambda num, frame: self._shutdown())
+            signal.signal(signal.SIGINT,    lambda num, frame: self._shutdown())
+            signal.signal(signal.SIGUSR1,   lambda num, frame: self._kill_child())
     
     def reset_signal_handlers(self):
         signal.signal(signal.SIGTERM,   signal.SIG_DFL)
@@ -170,9 +171,9 @@ class MonqueWorker(object):
     
     def _kill_child(self):
         if self._child:
-            logging.info("Killing child {0}".format(self.child))
+            logging.info("Killing child {0}".format(self._child))
             
-            if self.child.is_alive():
-                self.child.terminate()
+            if self._child.is_alive():
+                self._child.terminate()
             
-            self.child = None
+            self._child = None
