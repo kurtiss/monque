@@ -31,5 +31,5 @@ Worker:
     from monque import Monque, MonqueWorker
 
     monque = Monque(mongodb)
-		worker = monque.new_worker(queue = 'my_queue')
+    worker = monque.new_worker(queue = 'my_queue')
     worker.work()

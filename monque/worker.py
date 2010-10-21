@@ -16,16 +16,15 @@ import socket
 import time
 import util
 
-
 class MonqueWorker(object):
-    def __init__(self, monque, queues = None):
+    def __init__(self, monque, queues=None, dispatcher="fork"):
         self._monque = monque
         self._queues = queues or []
         self._worker_id = None
         self._child = None
         self._shutdown_status = None
+        self._dispatcher = dispatcher
     
-
     def register_worker(self):
         self._worker_id = pymongo.objectid.ObjectId()
         c = self._monque.get_collection('workers')
@@ -92,25 +91,28 @@ class MonqueWorker(object):
         })
 
     def process(self, order):
-        child = self.child = multiprocessing.Process(target=self._process_target, args=(order,))
-        self.child.start()
+        if self.dispatcher == "fork":
+            child = self._child = multiprocessing.Process(target=self._process_target, args=(order,))
+            self._child.start()
 
-        util.setprocname("monque: Forked {0} at {1}".format(self.child.pid, time.time()))
+            util.setprocname("monque: Forked {0} at {1}".format(self._child.pid, time.time()))
 
-        while True:
-            try:
-                child.join()
-            except OSError, e:
-                if 'Interrupted system call' not in e:
-                    raise
-                continue
-            break
+            while True:
+                try:
+                    child.join()
+                except OSError, e:
+                    if 'Interrupted system call' not in e:
+                        raise
+                    continue
+                break
 
-        self.child = None
+            self._child = None
 
-        if child.exitcode != 0:
-            raise Exception("Job failed with exit code {0}".format(child.exitcode))
-            
+            if child.exitcode != 0:
+                raise Exception("Job failed with exit code {0}".format(child.exitcode))
+        else:
+            self.dispatch(order)
+    
     def done_working(self):
         self.processed()
         c = self._monque.get_collection('workers')
@@ -118,9 +120,12 @@ class MonqueWorker(object):
     
     def _process_target(self, order):
         self.reset_signal_handlers()
+        self.dispatch(order)
+
+    def dispatch(self, order):
         util.setprocname("monque: Processing {0} since {1}".format(order.queue, time.time()))
         order.job.run()
-        
+    
     def _handle_job_failure(self, order, e):
         import traceback
         logging.warn("Job failed ({0}): {1}\n{2}".format(order.job, str(e), traceback.format_exc()))
@@ -133,15 +138,15 @@ class MonqueWorker(object):
             wc.update(dict(_id = self._worker_id), {'$inc' : dict(retried = 1)})
         else:
             self.failed()
-
+    
     def processed(self):
         wc = self._monque.get_collection('workers')
         wc.update(dict(_id = self._worker_id), {'$inc' : dict(processed = 1)})
-
+    
     def failed(self):
         wc = self._monque.get_collection('workers')
         wc.update(dict(_id = self._worker_id), {'$inc' : dict(failed = 1)})
-        
+    
     def _register_signal_handlers(self):
         signal.signal(signal.SIGTERM,   lambda num, frame: self._shutdown())
         signal.signal(signal.SIGINT,    lambda num, frame: self._shutdown())
@@ -162,12 +167,12 @@ class MonqueWorker(object):
             logging.info("Worker {0._worker_id} shutting down immediately.".format(self))
             self._shutdown_status = "immediate"
             self._kill_child()
-
+    
     def _kill_child(self):
-        if self.child:
+        if self._child:
             logging.info("Killing child {0}".format(self.child))
-
+            
             if self.child.is_alive():
                 self.child.terminate()
-
+            
             self.child = None
