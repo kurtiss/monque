@@ -88,6 +88,7 @@ class MonqueWorkOrder(object):
     def __configure__(self, values):
         configure_values = dict(values.items())
 
+        self._config_set('job_id', configure_values)
         self._config_set('queue', configure_values)
         self._config_set('delay', configure_values)
         self._config_set('retries', configure_values)

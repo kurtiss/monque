@@ -41,14 +41,14 @@ class Monque(object):
     
     # low-level
     
-    def push(self, queue, item, delay=0):
+    def push(self, queue, item, delay=0, retries=5):
         now = datetime.datetime.utcnow()
         c = self.get_queue_collection(queue)
         _id = c.insert(dict(
             inserted_time   = now,
             scheduled_time  = now + (delay if isinstance(delay, datetime.timedelta) else datetime.timedelta(seconds=delay)),
             random_token    = self._random_token(),
-            retries         = 0,
+            retries         = retries,
             failures        = [],
             body            = item,
         ))
@@ -101,6 +101,23 @@ class Monque(object):
         result['_id'] = str(result['_id'])
         return result
 
+    def update(self, queue, job_id, delay=None, failure=None):
+        spec = {}
+        if delay is not None:
+            now = datetime.datetime.utcnow()
+            spec['$set'] = {"scheduled_time": now + datetime.timedelta(seconds=delay)}
+        if failure:
+            spec.update({
+                "$push": {"failures": failure},
+                "$inc": {"retries": 1},
+            })
+
+        if not spec:
+            return
+
+        c = self.get_queue_collection(queue)
+        c.update({"_id": ObjectId(job_id)}, spec)
+
     def remove(self, queue, job_id):
         c = self.get_queue_collection(queue)
         c.remove({"_id": ObjectId(job_id)})
@@ -137,6 +154,7 @@ class Monque(object):
             
             work_order = job.MonqueWorkOrder(j)
             work_order.__configure__(dict(
+                job_id      = row['_id'],
                 queue       = queue,
                 retries     = row['retries'],
                 failures    = row['failures'],

@@ -99,6 +99,17 @@ class TestMonque(unittest.TestCase):
         time.sleep(1)
         job = self.monque.pop("test_queue")
         self.failUnlessEqual(job['body'], "alf")
+
+    def testUpdate(self):
+        _id = self.monque.push("test_queue", "alf")
+        self.monque.update("test_queue", _id, failure="cats")
+        job = self.monque.pop("test_queue", grabfor=5)
+        self.failUnlessEqual(job['failures'], ["cats"])
+        job = self.monque.pop("test_queue")
+        self.failUnlessEqual(job, None)
+        self.monque.update("test_queue", _id, delay=0)
+        job = self.monque.pop("test_queue")
+        self.failUnlessEqual(job['body'], "alf")
     
     def testJobs(self):
         import tests

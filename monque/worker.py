@@ -65,7 +65,7 @@ class MonqueWorker(object):
             self.unregister_worker()
             
     def _work_once(self):
-        order = self._monque.dequeue(self._queues)
+        order = self._monque.dequeue(self._queues, grabfor=60*60)
 
         if not order:
             return False
@@ -127,7 +127,7 @@ class MonqueWorker(object):
 
         if order.retries > 0:
             order.fail(e)
-            self._monque.enqueue(order)
+            self._monque.update(order.queue, order.job_id, delay=0, failure=str(e))
 
             wc = self._monque.get_collection('workers')
             wc.update(dict(_id = self._worker_id), {'$inc' : dict(retried = 1)})
