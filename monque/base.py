@@ -8,9 +8,7 @@ Created by Kurtiss Hare on 2010-03-12.
 
 import base64
 import datetime
-import functools
 import job
-import operator
 import pymongo
 import pymongo.errors
 import pymongo.son
