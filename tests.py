@@ -61,7 +61,8 @@ class TestMonque(unittest.TestCase):
         connection = pymongo.Connection()
         self.monque = monque.Monque(connection['monque-test'], default_queue = 'test_queue')
         self.tmpfile = tempfile.mkstemp()[1]
-        
+        self.monque.clear()
+    
     def failUnlessTestValuesEqual(self, args, kwargs):
         with open(self.tmpfile, "rb") as f:
             test_args, test_kwargs = pickle.loads(f.read())
@@ -69,7 +70,36 @@ class TestMonque(unittest.TestCase):
         self.failUnlessEqual(tuple(args), tuple(test_args))
         self.failUnlessEqual(item_set(kwargs), item_set(test_kwargs))
         os.unlink(self.tmpfile)
-
+    
+    def testPushPop(self):
+        self.monque.push("test_queue", "alf")
+        job = self.monque.pop("test_queue")
+        self.failUnlessEqual(job['body'], "alf")
+    
+    def testRemove(self):
+        _id = self.monque.push("test_queue", "alf")
+        self.monque.remove("test_queue", _id)
+        job = self.monque.pop("test_queue")
+        self.failUnlessEqual(job, None)
+    
+    def testDelayedPush(self):
+        self.monque.push("test_queue", "alf", delay=1)
+        job = self.monque.pop("test_queue")
+        self.failUnlessEqual(job, None)
+        time.sleep(1)
+        job = self.monque.pop("test_queue")
+        self.failUnlessEqual(job['body'], "alf")
+    
+    def testPopGrabFor(self):
+        self.monque.push("test_queue", "alf")
+        job = self.monque.pop("test_queue", grabfor=1)
+        self.failUnlessEqual(job['body'], "alf")
+        job = self.monque.pop("test_queue")
+        self.failUnlessEqual(job, None)
+        time.sleep(1)
+        job = self.monque.pop("test_queue")
+        self.failUnlessEqual(job['body'], "alf")
+    
     def testJobs(self):
         import tests
 
