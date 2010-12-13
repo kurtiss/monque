@@ -105,6 +105,13 @@ class MonqueWorkOrder(object):
             else:
                 setattr(self, name, value)
     
+    def mark_start(self):
+        self.startTime = datetime.datetime.now()
+    
+    def mark_completion(self):
+        self.endTime = datetime.datetime.now()
+        return self.endTime-self.startTime
+    
     def _set_delay(self, delay):
         if isinstance(delay, types.IntType):
             delay = datetime.timedelta(seconds = delay)

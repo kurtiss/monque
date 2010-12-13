@@ -1,0 +1,65 @@
+#!/usr/bin/env python
+
+import os, sys
+from munin.mongodb import MuninMongoDBPlugin
+
+class MonqueJobDurationPlugin(MuninMongoDBPlugin):
+    args = "-l 0 --base 60"
+    vlabel = "seconds"
+    title = "Monque"
+    info = "Operations"
+
+    @property
+    def fields(self):
+        # dynamically create the list 
+        self.queues = []
+        cur = self.db['monque:queue_stats'].find()
+        for row in cur:
+            try:
+                queue = row['_id']
+                self.queues.append(queue)
+            except KeyError:
+                pass
+        f1 = [
+            (queue, dict(
+                label = "%s_success_duration" % queue,
+                info = "%s avg successful job duration" % queue,
+                type = "GAUGE",
+            )) for queue in self.queues
+        ]
+        f2 = [
+            (queue, dict(
+                label = "%s_failure_duration" % queue,
+                info = "%s avg failed job duration" % queue,
+                type = "GAUGE",
+            )) for queue in self.queues
+        ]
+        f1.extend(f2)
+        return f1
+
+    @property
+    def title(self):
+        return "monque job duration"
+
+    def execute(self):
+        result = dict()
+        cur = self.db['monque:queue_stats'].find()
+        for row in cur:
+            try:
+                queue = row['queue']
+                successes = int(row.get('successes', 0))
+                failures = int(row.get('failures', 0))
+                success_duration = float(row.get('success_duration', 0))
+                failure_duration = float(row.get('failure_duration', 0))
+            except KeyError:
+                pass
+            else:
+                if successes!=0:
+                    result['%s_success_duration' % queue] = success_duration/successes
+                if failures!=0:
+                    result['%s_failure_duration' % queue] = failure_duration/failures
+                self.db['monque:queue_stats'].update(dict(queue=queue), {'$set': dict(successes=0, failures=0, success_duration=0, failure_duration=0)})
+        return result
+
+if __name__ == "__main__":
+    MonqueJobDurationPlugin().run()
