@@ -133,7 +133,7 @@ class MonqueWorker(object):
 
         if order.retries > 0:
             order.fail(e)
-            self._monque.update(order.queue, order.job_id, delay=0, failure=str(e))
+            self._monque.update(order.queue, order.job_id, delay=max(2**(len(order.failures)-1), 60), failure=str(e))
 
             wc = self._monque.get_collection('workers')
             wc.update(dict(_id = self._worker_id), {'$inc' : dict(retried = 1)})
