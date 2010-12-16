@@ -89,6 +89,9 @@ class MonqueWorker(object):
                 job         = order.job.__serialize__(),
             )
         })
+        
+        c = self._monque.get_collection('queue_stats')
+        order.mark_start()
 
     def process(self, order):
         if self._dispatcher == "fork":
@@ -115,9 +118,7 @@ class MonqueWorker(object):
     
     def done_working(self, order):
         self._monque.remove(order.queue, order.job_id)
-        self.processed()
-        c = self._monque.get_collection('workers')
-        c.remove(dict(_id = self._worker_id))
+        self.processed(order)
     
     def _process_target(self, order):
         self.reset_signal_handlers()
@@ -137,17 +138,29 @@ class MonqueWorker(object):
 
             wc = self._monque.get_collection('workers')
             wc.update(dict(_id = self._worker_id), {'$inc' : dict(retried = 1)})
+            qs = self._monque.get_collection('queue_stats')
+            qs.update(dict(queue = order.queue), {'$inc' : dict(retries=1)}, upsert=True)
         else:
-            self.failed()
+            self.failed(order)
     
-    def processed(self):
+    def processed(self, order):
         wc = self._monque.get_collection('workers')
         wc.update(dict(_id = self._worker_id), {'$inc' : dict(processed = 1)})
+        duration = order.mark_completion()
+        qs = self._monque.get_collection('queue_stats')
+        qs.update(dict(queue = order.queue), {'$inc' : dict(successes=1, size=-1, success_duration=duration.seconds)}, upsert=True)
+        # qs.update(dict(queue = order.queue), {'$inc' : dict(size=-1)}, upsert=True)
+        # qs.update(dict(queue = order.queue), {'$inc' : dict(success_duration=duration.seconds)}, upsert=True)
     
-    def failed(self):
+    def failed(self, order):
         wc = self._monque.get_collection('workers')
         wc.update(dict(_id = self._worker_id), {'$inc' : dict(failed = 1)})
-    
+        duration = order.mark_completion()
+        qs = self._monque.get_collection('queue_stats')
+        qs.update(dict(queue = order.queue), {'$inc' : dict(failures=1, size=-1, failure_duration=duration.seconds)}, upsert=True)
+        # qs.update(dict(queue = order.queue), {'$inc' : dict(size=-1)}, upsert=True)
+        # qs.update(dict(queue = order.queue), {'$inc' : dict(failure_duration=duration.seconds)}, upsert=True)
+
     def _register_signal_handlers(self):
         signal.signal(signal.SIGQUIT,   lambda num, frame: self._shutdown(graceful=True))
         if self._dispatcher == "fork":

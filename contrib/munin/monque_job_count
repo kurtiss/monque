@@ -1,0 +1,59 @@
+#!/usr/bin/env python
+
+import os, sys
+from munin.mongodb import MuninMongoDBPlugin
+
+class MonqueJobCountPlugin(MuninMongoDBPlugin):
+    args = "-l 0 --base 1000"
+    vlabel = "jobs"
+    title = "Monque"
+    info = "Operations"
+
+    @property
+    def fields(self):
+        self.queues = []
+        cur = self.db['monque:queue_stats'].find()
+        for row in cur:
+            try:
+                queue = row['queue']
+                self.queues.append(queue)
+            except KeyError:
+                pass
+        f1 = [
+            (queue, dict(
+                label = "%s_job_success_count" % queue,
+                info = "%s job processed count" % queue,
+                type = "GAUGE",
+            )) for queue in self.queues
+        ]
+        f2 = [
+            (queue, dict(
+                label = "%s_failure_count" % queue,
+                info = "%s job processed count" % queue,
+                type = "GAUGE",
+            )) for queue in self.queues
+        ]
+        f1.extend(f2)
+        return f1
+
+    @property
+    def title(self):
+        return "monque job count"
+
+    def execute(self):
+        result = dict()
+        cur = self.db['monque:queue_stats'].find()
+        for row in cur:
+            try:
+                queue = row['queue']
+                successes = int(row.get('successes', 0))
+                failures = int(row.get('failures', 0))
+            except KeyError:
+                pass
+            else:
+                result['%s_job_success_count' % queue] = successes
+                result['%s_job_failure_count' % queue] = failures
+        return result
+
+if __name__ == "__main__":
+    MonqueJobCountPlugin().run()

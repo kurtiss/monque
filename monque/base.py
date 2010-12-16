@@ -133,7 +133,10 @@ class Monque(object):
             ),
             delay = work_order.delay,
             retries = work_order.retries)
-    
+        c = self.get_collection('queue_stats')
+        print work_order.queue
+        c.update(dict(queue=work_order.queue), {'$inc' : dict(size=1)}, upsert=True)
+
     def dequeue(self, queues=None, grabfor=None):
         if not queues:
             queues = (self._workorder_defaults['queue'],)
