@@ -6,8 +6,9 @@ from munin.mongodb import MuninMongoDBPlugin
 class MonqueJobCountPlugin(MuninMongoDBPlugin):
     args = "-l 0 --base 1000"
     vlabel = "jobs"
-    title = "Monque"
+    title = "Monque job count"
     info = "Operations"
+    category = "Monque"
 
     @property
     def fields(self):

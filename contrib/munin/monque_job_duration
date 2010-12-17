@@ -4,10 +4,11 @@ import os, sys
 from munin.mongodb import MuninMongoDBPlugin
 
 class MonqueJobDurationPlugin(MuninMongoDBPlugin):
-    args = "-l 0 --base 60"
+    args = "-l 0 --base 1000"
     vlabel = "seconds"
-    title = "Monque"
+    title = "Monque duration"
     info = "Operations"
+    category = "Monque"
 
     @property
     def fields(self):
