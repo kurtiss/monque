@@ -20,21 +20,19 @@ class MonqueJobCountPlugin(MuninMongoDBPlugin):
                 self.queues.append(queue)
             except KeyError:
                 pass
-        f1 = [
+        fie = [
             ("%s_success" % queue, dict(
                 label = "%s succeeded" % queue,
                 info = "%s job succeeded count" % queue,
                 type = "COUNTER",
             )) for queue in self.queues
-        ]
-        f2 = [
+        ] + [
             ("%s_failure" % queue, dict(
                 label = "%s failed" % queue,
                 info = "%s job failed count" % queue,
                 type = "COUNTER",
             )) for queue in self.queues
-        ]
-        f2 = [
+        ] + [
             ("%s_retries" % queue, dict(
                 label = "%s retried" % queue,
                 info = "%s job retried count" % queue,
@@ -42,7 +40,7 @@ class MonqueJobCountPlugin(MuninMongoDBPlugin):
             )) for queue in self.queues
         ]
         f1.extend(f2)
-        return f1
+        return fie
 
     @property
     def title(self):
