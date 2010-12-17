@@ -39,7 +39,6 @@ class MonqueJobCountPlugin(MuninMongoDBPlugin):
                 type = "COUNTER",
             )) for queue in self.queues
         ]
-        f1.extend(f2)
         return fie
 
     @property
