@@ -44,10 +44,6 @@ class MonqueJobCountPlugin(MuninMongoDBPlugin):
         ]
         return fie
 
-    @property
-    def title(self):
-        return "monque job count"
-
     def execute(self):
         result = dict()
         cur = self.db['monque:queue_stats'].find()

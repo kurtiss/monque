@@ -156,7 +156,7 @@ class MonqueWorker(object):
         wc.update(dict(_id = self._worker_id), {'$inc' : dict(processed = 1)})
         duration = order.mark_completion()
         qs = self._monque.get_collection('queue_stats')
-        qs.update(dict(queue = order.queue), {'$inc' : dict(successes=1, size=-1, success_duration=duration.seconds)}, upsert=True)
+        qs.update(dict(queue = order.queue), {'$inc' : dict(successes=1, success_duration=duration.seconds)}, upsert=True)
         # qs.update(dict(queue = order.queue), {'$inc' : dict(size=-1)}, upsert=True)
         # qs.update(dict(queue = order.queue), {'$inc' : dict(success_duration=duration.seconds)}, upsert=True)
     
@@ -165,7 +165,7 @@ class MonqueWorker(object):
         wc.update(dict(_id = self._worker_id), {'$inc' : dict(failed = 1)})
         duration = order.mark_completion()
         qs = self._monque.get_collection('queue_stats')
-        qs.update(dict(queue = order.queue), {'$inc' : dict(failures=1, size=-1, failure_duration=duration.seconds)}, upsert=True)
+        qs.update(dict(queue = order.queue), {'$inc' : dict(failures=1, failure_duration=duration.seconds)}, upsert=True)
         # qs.update(dict(queue = order.queue), {'$inc' : dict(size=-1)}, upsert=True)
         # qs.update(dict(queue = order.queue), {'$inc' : dict(failure_duration=duration.seconds)}, upsert=True)
 

@@ -38,10 +38,6 @@ class MonqueJobDurationPlugin(MuninMongoDBPlugin):
         f1.extend(f2)
         return f1
 
-    @property
-    def title(self):
-        return "monque job duration"
-
     def execute(self):
         result = dict()
         cur = self.db['monque:queue_stats'].find()

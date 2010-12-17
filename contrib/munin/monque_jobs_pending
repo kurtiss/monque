@@ -12,41 +12,23 @@ class MonqueJobsPendingPlugin(MuninMongoDBPlugin):
 
     @property
     def fields(self):
-        # dynamically create the list 
-        self.queues = []
-        cur = self.db['monque:queue_stats'].find()
-        for row in cur:
-            try:
-                queue = row['_id']
-                self.queues.append(queue)
-            except KeyError:
-                pass
+        queues = [x.split(':', 2)[-1] for x in self.db.collection_names() if x.startswith('monque:queues:')]
         return [
-            (queue, dict(
-                label = "%s_jobs_pending" % queue,
+            (queue+"_pending", dict(
+                label = "%s jobs pending" % queue,
                 info = "%s jobs pending" % queue,
                 type = "GAUGE",
                 min = "0",
-                warning = "200",
-                critical = "1000"
+                warning = "100",
+                critical = "200"
             )) for queue in self.queues
         ]
 
-    @property
-    def title(self):
-        return "monque jobs pending"
-
     def execute(self):
         result = dict()
-        cur = self.db['monque:queue_stats'].find()
-        for row in cur:
-            try:
-                queue = row['queue']
-                queue_size = int(row.get('size', 0))
-            except KeyError:
-                pass
-            else:
-                result['%s_jobs_pending' % queue] = queue_size
+        queues = [x.split(':', 2)[-1] for x in self.db.collection_names() if x.startswith('monque:queues:')]
+        for name in queues:
+            result["%s_pending" + name] = self.db["monque:queues:"+name].count()
         return result
 
 if __name__ == "__main__":
