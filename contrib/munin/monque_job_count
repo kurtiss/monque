@@ -24,19 +24,22 @@ class MonqueJobCountPlugin(MuninMongoDBPlugin):
             ("%s_success" % queue, dict(
                 label = "%s succeeded" % queue,
                 info = "%s job succeeded count" % queue,
-                type = "COUNTER",
+                type = "DERIVE",
+                min = "0",
             )) for queue in self.queues
         ] + [
             ("%s_failure" % queue, dict(
                 label = "%s failed" % queue,
                 info = "%s job failed count" % queue,
-                type = "COUNTER",
+                type = "DERIVE",
+                min = "0",
             )) for queue in self.queues
         ] + [
             ("%s_retries" % queue, dict(
                 label = "%s retried" % queue,
                 info = "%s job retried count" % queue,
-                type = "COUNTER",
+                type = "DERIVE",
+                min = "0",
             )) for queue in self.queues
         ]
         return fie
