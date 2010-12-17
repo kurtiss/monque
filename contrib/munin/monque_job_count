@@ -21,17 +21,24 @@ class MonqueJobCountPlugin(MuninMongoDBPlugin):
             except KeyError:
                 pass
         f1 = [
-            (queue, dict(
-                label = "%s_job_success_count" % queue,
-                info = "%s job processed count" % queue,
-                type = "GAUGE",
+            ("%s_success" % queue, dict(
+                label = "%s succeeded" % queue,
+                info = "%s job succeeded count" % queue,
+                type = "COUNTER",
             )) for queue in self.queues
         ]
         f2 = [
-            (queue, dict(
-                label = "%s_failure_count" % queue,
-                info = "%s job processed count" % queue,
-                type = "GAUGE",
+            ("%s_failure" % queue, dict(
+                label = "%s failed" % queue,
+                info = "%s job failed count" % queue,
+                type = "COUNTER",
+            )) for queue in self.queues
+        ]
+        f2 = [
+            ("%s_retries" % queue, dict(
+                label = "%s retried" % queue,
+                info = "%s job retried count" % queue,
+                type = "COUNTER",
             )) for queue in self.queues
         ]
         f1.extend(f2)
@@ -45,15 +52,10 @@ class MonqueJobCountPlugin(MuninMongoDBPlugin):
         result = dict()
         cur = self.db['monque:queue_stats'].find()
         for row in cur:
-            try:
-                queue = row['queue']
-                successes = int(row.get('successes', 0))
-                failures = int(row.get('failures', 0))
-            except KeyError:
-                pass
-            else:
-                result['%s_job_success_count' % queue] = successes
-                result['%s_job_failure_count' % queue] = failures
+            queue = row['queue']
+            result['%s_success' % queue] = row['successes']
+            result['%s_failure' % queue] = row['failures']
+            result['%s_retries' % queue] = row['retries']
         return result
 
 if __name__ == "__main__":

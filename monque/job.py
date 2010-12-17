@@ -82,7 +82,7 @@ class MonqueWorkOrder(object):
         self.job = job
 
     def fail(self, e):
-        self.retries = self.retries - 1
+        self.retries -= 1
         self.failures.append(str(e))
 
     def __configure__(self, values):
