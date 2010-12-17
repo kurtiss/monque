@@ -77,6 +77,14 @@ class MonqueWorker(object):
                 self._handle_job_failure(order, e)
             else:
                 self.done_working(order)
+            finally:
+                c = self._monque.get_collection('workers')
+                c.update(dict(_id = self._worker_id), {
+                    '$set' : dict(
+                        start_time  = None,
+                        job         = None,
+                    )
+                })
 
         return True
         
