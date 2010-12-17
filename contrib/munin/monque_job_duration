@@ -17,45 +17,39 @@ class MonqueJobDurationPlugin(MuninMongoDBPlugin):
         cur = self.db['monque:queue_stats'].find()
         for row in cur:
             try:
-                queue = row['_id']
+                queue = row['queue']
                 self.queues.append(queue)
             except KeyError:
                 pass
-        f1 = [
-            (queue, dict(
-                label = "%s_success_duration" % queue,
+        fie = [
+            (queue+"_success_duration", dict(
+                label = "%s success duration" % queue,
                 info = "%s avg successful job duration" % queue,
                 type = "GAUGE",
             )) for queue in self.queues
-        ]
-        f2 = [
-            (queue, dict(
-                label = "%s_failure_duration" % queue,
+        ] + [
+            (queue+"_failure_duration", dict(
+                label = "%s failure duration" % queue,
                 info = "%s avg failed job duration" % queue,
                 type = "GAUGE",
             )) for queue in self.queues
         ]
-        f1.extend(f2)
-        return f1
+        return fie
 
     def execute(self):
         result = dict()
         cur = self.db['monque:queue_stats'].find()
-        for row in cur:
-            try:
-                queue = row['queue']
-                successes = int(row.get('successes', 0))
-                failures = int(row.get('failures', 0))
-                success_duration = float(row.get('success_duration', 0))
-                failure_duration = float(row.get('failure_duration', 0))
-            except KeyError:
-                pass
-            else:
-                if successes!=0:
-                    result['%s_success_duration' % queue] = success_duration/successes
-                if failures!=0:
-                    result['%s_failure_duration' % queue] = failure_duration/failures
-                self.db['monque:queue_stats'].update(dict(queue=queue), {'$set': dict(successes=0, failures=0, success_duration=0, failure_duration=0)})
+        for obj in cur:
+            queue = obj['queue']
+            successes = obj['successes']
+            failures = obj['failures']
+            success_duration = obj['success_duration']
+            failure_duration = obj['failure_duration']
+            if successes!=0:
+                result['%s_success_duration' % queue] = success_duration / successes
+            if failures!=0:
+                result['%s_failure_duration' % queue] = failure_duration / failures
+            self.db['monque:queue_stats'].update(dict(queue=queue), {'$set': dict(successes=0, failures=0, success_duration=0, failure_duration=0)})
         return result
 
 if __name__ == "__main__":
