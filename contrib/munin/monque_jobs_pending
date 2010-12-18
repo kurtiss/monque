@@ -28,7 +28,7 @@ class MonqueJobsPendingPlugin(MuninMongoDBPlugin):
         result = dict()
         queues = [x.split(':', 2)[-1] for x in self.db.collection_names() if x.startswith('monque:queues:')]
         for name in queues:
-            result["%s_pending" + name] = self.db["monque:queues:"+name].count()
+            result["%s_pending" % name] = self.db["monque:queues:"+name].count()
         return result
 
 if __name__ == "__main__":
