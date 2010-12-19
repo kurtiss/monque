@@ -22,6 +22,16 @@ retry_job_limit = 3
 def do_set_test_values(tmpfile, *test_args, **test_kwargs):
     with open(tmpfile, "w+") as f:
         f.write(pickle.dumps((test_args, test_kwargs)))
+
+def do_get_test_values(tmpfile, *default_args, **default_kwargs):
+    if os.path.exists(tmpfile) and os.stat(tmpfile).st_size > 0:
+        with open(tmpfile, "rb") as f:
+            args, kwargs = pickle.loads(f.read())
+    else:
+        args = default_args
+        kwargs = default_kwargs
+
+    return args, kwargs
     
 def item_set(values):
     try:
@@ -40,17 +50,14 @@ def long_job(*args, **kwargs):
 
 @monque.job()
 def retry_job(tmpfile):
-    if os.path.exists(tmpfile) and os.stat(tmpfile).st_size > 0:
-        with open(tmpfile, "rb") as f:
-            ((retry_count,), empty) = pickle.loads(f.read())
-    else:
-        retry_count = 0
-
+    (retry_count,), empty = do_get_test_values(tmpfile, 0)
     retry_count += 1
     do_set_test_values(tmpfile, retry_count)
 
-    if retry_count < retry_job_limit:
-        raise RuntimeError('Retry job failure')
+    if retry_count <= retry_job_limit:
+        raise RuntimeError('Forced retry job failure, this is to be expected...')
+    else:
+        raise RuntimeError('Job is being retried too many times, hopefully this gets caught...')
 
 
 class TestMonque(unittest.TestCase):
@@ -64,9 +71,7 @@ class TestMonque(unittest.TestCase):
         self.monque.clear()
     
     def failUnlessTestValuesEqual(self, args, kwargs):
-        with open(self.tmpfile, "rb") as f:
-            test_args, test_kwargs = pickle.loads(f.read())
-        
+        test_args, test_kwargs = do_get_test_values(self.tmpfile)
         self.failUnlessEqual(tuple(args), tuple(test_args))
         self.failUnlessEqual(item_set(kwargs), item_set(test_kwargs))
         os.unlink(self.tmpfile)
@@ -207,7 +212,7 @@ class TestMonque(unittest.TestCase):
         child = multiprocessing.Process(target = worker)
         child.start()
     
-        time.sleep(3)
+        time.sleep(10)
         os.kill(child.pid, signal.SIGQUIT)
         child.join()
         

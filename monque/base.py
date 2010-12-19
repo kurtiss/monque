@@ -62,18 +62,22 @@ class Monque(object):
             extra = [('update', {'$set': {"scheduled_time": now + datetime.timedelta(seconds=grabfor)}})]
         else:
             extra = [('remove', True)]
+            
+        query = dict(
+            scheduled_time = {'$lte' : now},
+            retries = {'$gt' : 0}
+        )
 
         if not ordered:
             capture_token = self._random_token()
             directions = (('$gte', pymongo.ASCENDING), ('$lt', pymongo.DESCENDING))
+
             for operator, order in directions:
+                query['random_token'] = { operator : capture_token }
                 try:
                     result = self.mongodb.command(pymongo.son.SON([
                         ('findandmodify', c.name),
-                        ('query', dict(
-                            scheduled_time  = {'$lte' : now},
-                            random_token    = { operator : capture_token }
-                        )),
+                        ('query', query),
                         ('sort', dict(random_token = order)),
                     ] + extra))
                 except pymongo.errors.OperationFailure:
@@ -84,9 +88,7 @@ class Monque(object):
             try:
                 result = self.mongodb.command(pymongo.son.SON([
                     ('findandmodify', c.name),
-                    ('query', dict(
-                        scheduled_time  = {'$lte' : now},
-                    )),
+                    ('query', query),
                     ('sort', dict(scheduled_time = pymongo.ASCENDING)),
                 ] + extra))
             except pymongo.errors.OperationFailure:
@@ -107,7 +109,7 @@ class Monque(object):
         if failure:
             spec.update({
                 "$push": {"failures": failure},
-                "$inc": {"retries": 1},
+                "$inc": {"retries": -1},
             })
 
         if not spec:
